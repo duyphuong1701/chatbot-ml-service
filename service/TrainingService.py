@@ -3,6 +3,7 @@ import pandas as pd
 import quadprog as qp
 from tqdm import tqdm
 
+
 class SVM:
     def __init__(self, x, y, c):
         self.c = c
@@ -56,14 +57,17 @@ class SVM:
 
 
 class SVMModel:
-    def __init__(self, c=None, label=None,wb=None):
+    def __init__(self, c=None, label=None,wb=None,name=None,feature =None):
         self.c = c
         self.label = label
         self.wb = wb
+        self.name =None
+        self.feature =None
 
     def fit(self, X_train, y_train):
         self.X_train = X_train
         self.y_train = y_train
+        self.label =  self.getLabel(y_train)
         self.arr = np.concatenate((np.array(X_train), np.array([y_train]).T), axis=1)
 
     def train(self):
@@ -74,12 +78,12 @@ class SVMModel:
             # doi nhan tuan tu
             d.update({j: 1})
             # goi SVM them vao mang luu
-            x = SVM(self.X_train, self.y_train.replace(d), self.c)
+            x = SVM(self.X_train, self.getLabel(self.y_train).replace(d), self.c)
             x = x.sol()[0:x.n]
             wb.append(x)
         self.wb = np.array(wb)
 
-    def predict(self, input):
+    def _predict(self, input):
         wb = self.wb
         x_test = np.matrix(input)
         # thuc hien nhan xi*wi-b theo tung nhan
@@ -88,37 +92,26 @@ class SVMModel:
         predict_ = np.ravel(np.argmax(v, axis=1))
 
         score =-np.sort(-v,axis=1)
-        print(np.min(score, axis=1).ravel())
+        # print(np.min(score, axis=1).ravel())
         # score-=np.min(score, axis=1).ravel()
         idx = np.argsort(-v, axis=1)
         res=pd.DataFrame(data=[score.transpose().tolist(), idx.transpose().tolist()],index=['score',"index"]).transpose()
-        print(res)
+        # print(res)
         if np.max(score, axis=1).ravel()<0:
             return -1
         return predict_[0]
+    def predict(self, input):
+        index = self._predict(input)
+        return self.y_train.unique()[index]
 
-    # def save_csv(self,id,value):
-    #     if id == None:
-    #         id = uuid.uuid1()
-    #     # opening the csv file in 'w+' mode
-    #     filename = '../csv/history_train/training_' + str(id) + '.csv'
-    #     file = open(filename, 'w+', newline='')
+    def getLabel(self, y):
+        label = y
+        # chuyen doi nhan sang numeric
+        d = dict(enumerate(label.unique(), 0))
+        d = {value: key for key, value in d.items()}
+        label = label.replace(d)
+        return label
 
-        # writing the data into the file
-        # with file:
-        #     write = csv.writer(file)
-        #     write.writerows(value)
-
-    # def save_wb(self,id):
-    #     if id == None:
-    #         id = uuid.uuid1()
-    #     filename = '../csv/model/model_' + str(id) + '.csv'
-    #     file = open(filename, 'w+', newline='')
-    #
-    #     # writing the data into the file
-    #     with file:
-    #         write = csv.writer(file)
-    #         write.writerows(self.wb)
     def load_wb(self,filename):
         df = pd.read_csv(filename,header=None)
         self.wb = np.array(df)
@@ -133,3 +126,13 @@ class SVMModel:
         predict_ = np.ravel(np.argmax(v, axis=1))
         score = np.count_nonzero(y_test == predict_) / len(y_test)
         return score
+# data = Converter.toDataFrame(RestClient.getAllQuestion())
+# # data = data.iloc[:300,:]
+# x = data["question_content"]
+# y = data["group_id"]
+# feature_extraction = FeatureExtraction(x, [])
+# x_feature_extraction_child = pd.DataFrame(data=feature_extraction.extract_to_array())
+# model = SVMModel(c=float(10))
+# model.fit(x_feature_extraction_child, y)
+# model.train()
+# print(model.predict2(feature_extraction.tranform_new("thực tập thực tế").toarray()))

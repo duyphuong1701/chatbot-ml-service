@@ -4,6 +4,11 @@ import psycopg2.extras
 
 class Database:
     def __init__(self):
+        # self.host = "localhost"
+        # self.db = "chatbot_db"
+        # self.username = "chatbot_db"
+        # self.password = "root"
+        # self.port = 5433
         self.host = "ec2-3-224-8-189.compute-1.amazonaws.com"
         self.db = "d4beur7tqefhvp"
         self.username = "rpkxxlrrnzupzm"
@@ -46,10 +51,10 @@ class Database:
         return self.postgresql_to_dataframe("select * from category", ["category_id", "category_name"])
 
     def getAllQuestion(self):
-        return self.postgresql_to_dataframe("select * from question", ["question_id", "qa_id","category_id" ,"question_content"])
+        return self.postgresql_to_dataframe("select * from tb_question", ["question_id","category_id","group_id","question_content"])
 
     def getAllAnswer(self):
-        return self.postgresql_to_dataframe("select * from answer", ["answer_id", "qa_id","category_id", "answer_content"])
+        return self.postgresql_to_dataframe("select * from tb_answer", ["answer_id","category_id", "answer_content"])
 
     def insert(self, table_name, list_field, list_value):
         pg2.extras.register_uuid()
@@ -58,7 +63,6 @@ class Database:
             len_value+="%s,"
         len_value +="%s)";
         sql = f"INSERT INTO {table_name}({','.join(list_field)}) {len_value}"
-        print(sql)
         value = tuple(list_value)
         self.execute_query(sql, value)
 
@@ -76,7 +80,7 @@ class Database:
     def getModel(self):
         self.connect()
         try:
-            self.cur.execute("select * from model")
+            self.cur.execute("select * from tb_model")
         except (Exception, pg2.DatabaseError) as error:
             print("Error: %s" % error)
             self.close()

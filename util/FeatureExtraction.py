@@ -16,6 +16,9 @@ class FeatureExtraction:
     def extract(self):
         return self.vectorizer.transform(self.data)
 
+    def extractFrom(self, data):
+        return self.vectorizer.transform(data)
+
     def tranform_new(self, text):
         return self.vectorizer.transform([text])
 

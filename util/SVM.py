@@ -132,7 +132,7 @@ class SVMModel:
 
     def score(self, X_test, y_test):
         wb = self.wb
-        print(wb)
+        # print(wb)
         x_test = np.matrix(X_test)
         y_test = np.array(y_test)
         # thuc hien nhan xi*wi-b theo tung nhan

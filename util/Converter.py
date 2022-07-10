@@ -2,6 +2,8 @@ import codecs
 import json
 import pickle
 
+from pandas import json_normalize
+
 
 def encode(value):
     pickled = str(codecs.encode(pickle.dumps(value), "base64").decode())
@@ -15,3 +17,6 @@ def decode(value):
 
 def toJson(value):
     return json.loads(value)
+
+def toDataFrame(value):
+    return json_normalize(value)
