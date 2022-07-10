@@ -4,6 +4,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from database import ChatbotRepository
+from entity.Model import Model
+from rest import RestClient
 from service import FeatureExtractionService
 from service import TrainingService
 from util import Converter
@@ -17,8 +19,8 @@ class ChatbotService:
         self.dataAnswer = self.repo.getAllAnswer()
         # self.chatbotModel = self.repo.getModel()
 
-    def getLabel(self):
-        label = self.dataQuestion['qa_id']
+    def getLabel(self, y):
+        label = y
         # chuyen doi nhan sang numeric
         d = dict(enumerate(label.unique(), 0))
         d = {value: key for key, value in d.items()}
@@ -26,15 +28,15 @@ class ChatbotService:
         return label
 
     def getLabel2(self, data):
-        label = data['qa_id']
+        label = data['category']
         # chuyen doi nhan sang numeric
         d = dict(enumerate(label.unique(), 0))
         d = {value: key for key, value in d.items()}
         label = label.replace(d)
         return label
 
-    def getCategory(self):
-        label = self.dataQuestion['category_id']
+    def getCategory(self, data, field='category_id'):
+        label = data[field]
         # chuyen doi nhan sang numeric
         d = dict(enumerate(label.unique(), 0))
         d = {value: key for key, value in d.items()}
@@ -69,51 +71,50 @@ class ChatbotService:
         return train_test_split(df, label, test_size=0.2, shuffle=True, stratify=label)
 
     def training2(self, c=5, random_state=1, shuffle=False, test_size=0.2):
-        data = self.dataQuestion
-        categories = set(data['category_id'].to_list())
-        print(categories)
-        dt = data['question_content']
-        label = self.getCategory()
+        data = Converter.toDataFrame(RestClient.getAllQuestion())
+        data = data.sort_values(by=['group_id'], ascending=True)
+        x = data['question_content']
+        y = self.getLabel(data['group_id'])
+        print(data['group_id'].unique())
         # trich xuat dac trung
-        feature_extraction = FeatureExtraction(dt, [])
-        df = pd.DataFrame(data=feature_extraction.extract_to_array())
+        feature_extraction = FeatureExtraction(x, [])
+        x_feature_extraction = pd.DataFrame(data=feature_extraction.extract_to_array())
 
-        X_train, X_test, y_train, y_test = self.train_test_split(df, label, test_size=test_size,
+        X_train, X_test, y_train, y_test = self.train_test_split(x_feature_extraction, y, test_size=test_size,
                                                                  random_state=random_state, shuffle=shuffle)
-        model = TrainingService.SVMModel(float(c), label)
-        model.fit(X_train, y_train)
-        model.train()
+        model = self.train(X_train, y_train, 10, 0.2)
         score = model.score(X_test, y_test)
+        print(score)
         model_id = uuid.uuid1()
-        self.repo.insert("model", ['model_id', 'name', 'data', 'score', 'c_parameter', 'feature', 'wb'],
-                         [str(model_id), 'parent', Converter.encode(data), str(score), str(model.c),
-                          Converter.encode(feature_extraction),
-                          Converter.encode(model.wb)]);
+        model_save = Model(str(model_id), 'parent', Converter.encode(data), str(score), str(model.c),
+                           Converter.encode(feature_extraction),
+                           Converter.encode(model.wb))
+        RestClient.postModel(model_save)
         # child
 
-        for e in categories:
-            print(e)
-            data_child = data[data['category_id'] == e]
-            dt_child = data_child['question_content']
-            label_child = self.getLabel2(data_child)
-            # trich xuat dac trung
-            feature_extraction_child = FeatureExtraction(dt_child, [])
-            df_child = pd.DataFrame(data=feature_extraction_child.extract_to_array())
-
-            X_train_child, X_test_child, y_train_child, y_test_child = self.train_test_split(df_child, label_child,
-                                                                                             test_size=test_size,
-                                                                                             random_state=random_state,
-                                                                                             shuffle=shuffle)
-            model_child = TrainingService.SVMModel(float(c), label_child)
-            model_child.fit(X_train_child, y_train_child)
+        for e in data['group_id'].unique():
+            print(f"Training child: {e}")
+            data_child = data[data["group_id"] == e]
+            x = data_child["question_content"]
+            y = self.getLabel(data_child["category_id"])
+            feature_extraction = FeatureExtraction(x, [])
+            x_feature_extraction = pd.DataFrame(data=feature_extraction.extract_to_array())
+            model_child = TrainingService.SVMModel(float(c), y)
+            model_child.fit(x_feature_extraction, y)
             model_child.train()
-            score = model_child.score(X_test_child, y_test_child)
             model_id2 = uuid.uuid1()
-            self.repo.insert("model", ['model_id', 'name', 'data', 'score', 'c_parameter', 'feature', 'wb'],
-                             [str(model_id2), str(e), Converter.encode(data_child), str(score), str(model_child.c),
-                              Converter.encode(feature_extraction_child),
-                              Converter.encode(model_child.wb)]);
-            self.repo.insert("model_child", ["model_child_id", "model_id"], [str(model_id2), str(model_id)])
+            model_child_save = Model(str(model_id2), str(e), Converter.encode(data_child), str(score),
+                                     str(model_child.c), Converter.encode(feature_extraction),
+                                     Converter.encode(model_child.wb))
+            RestClient.postModel(model_child_save)
+            self.repo.insert("tb_model_child", ["model_child_id", "model_id"], [str(model_id2), str(model_id)])
+
+    def train(self, x, y, c, testsize):
+        label = self.getLabel(y)
+        model = TrainingService.SVMModel(float(c), label)
+        model.fit(x, y)
+        model.train()
+        return model
 
     def find_parameter_sol2(self):
         print(f"find parameter with sol2")
@@ -140,21 +141,22 @@ class ChatbotService:
             self.training1(c=c, shuffle=True, test_size=0.2, random_state=None)
 
     def predict1(self, content):
+        selection = RestClient.getSelection()
+        _model = RestClient.getModel(selection["modelId"])
         model = TrainingService.SVMModel()
-        wb = self.chatbotModel[2]
-
-        model.wb = Converter.decode(wb)
+        model.wb = Converter.decode(_model["wb"])
         return model.predict(content)
 
-    def reply_question(self, question):
+    def reply_question1(self, question):
         answers = self.dataAnswer
-        questions = self.dataQuestion['question_content']
+        selection = RestClient.getSelection()
+        _model = RestClient.getModel(selection["modelId"])
+        questions = Converter.decode(_model["data"])["question_content"]
         feature_extraction = FeatureExtractionService.FeatureExtractionService(questions, [])
-        intention = self.predict(feature_extraction.tranform_new(question).toarray())
-        return self.reply(intention, answers)
+        intention = self.predict1(feature_extraction.tranform_new(question).toarray())
+        return self.reply1(intention, answers)
 
-    def reply(self, intention, answers):
-        print(intention)
+    def reply1(self, intention, answers):
         if intention == -1:
             return "Không tìm được câu trả lời phù hợp"
         d = dict(enumerate(self.dataQuestion['qa_id'].unique(), 0))
@@ -164,3 +166,33 @@ class ChatbotService:
         position = val_list.index(intention)
         print(answers[answers['qa_id'] == key_list[position]])
         return self.repo.getAnswerById(key_list[position])[0]
+
+    #     for sol2
+    def reply_question2(self, question):
+        selection = RestClient.getSelection()
+        group_of_question = self.predict2(selection["model_id"], question, "group")
+        category_id = None
+        for child_id in selection["child"]:
+            model_child = RestClient.getModel(child_id)
+            if (model_child["name"] == group_of_question):
+                category_id = self.predict2(child_id, question)
+        result = RestClient.getAnswerByCategoryId(category_id)
+        print(result)
+        return result
+
+    def predict2(self, model_id, question, flag="category"):
+        model_db = RestClient.getModel(model_id)
+        _questions = Converter.decode(model_db["data"])["question_content"]
+        _group = Converter.decode(model_db["data"])["group_id"]
+        _categories = Converter.decode(model_db["data"])["category_id"]
+        _model_wb = Converter.decode(model_db["wb"])
+        _feature_extraction = FeatureExtractionService.FeatureExtractionService(_questions, [])
+        model = TrainingService.SVMModel()
+        model.wb = _model_wb
+        result = model.predict(_feature_extraction.tranform_new(question).toarray())
+        if (flag == "group"):
+            return (self.fromIndexToLabel(result, _group))
+        return (self.fromIndexToLabel(result, _categories))
+
+    def fromIndexToLabel(self, index, arr):
+        return arr.unique()[index]
