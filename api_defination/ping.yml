@@ -1,0 +1,5 @@
+Get state of this service
+---
+responses:
+  '200':
+    description: pong

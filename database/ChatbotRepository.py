@@ -9,10 +9,10 @@ class Database:
         # self.username = "chatbot_db"
         # self.password = "root"
         # self.port = 5433
-        self.host = "ec2-3-224-8-189.compute-1.amazonaws.com"
-        self.db = "d4beur7tqefhvp"
-        self.username = "rpkxxlrrnzupzm"
-        self.password = "a0e26be17fd6203a4acb8e90df8915561efc245ac71d5a7f623ce2f68ee46d27"
+        self.host = "20.194.252.15"
+        self.db = "chatbot_db"
+        self.username = "root"
+        self.password = "root"
         self.port = 5432
         self.cur = None
         self.conn = None

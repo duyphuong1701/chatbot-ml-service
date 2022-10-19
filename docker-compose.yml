@@ -1,0 +1,9 @@
+version: "3.7"
+
+services:
+  app:
+    build: .
+    image: chatbot/ml:v1
+    ports:
+      - "8765:8765"
+    restart: unless-stopped

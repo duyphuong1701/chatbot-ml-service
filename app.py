@@ -1,16 +1,23 @@
 from flask import Flask, request
 from flask_cors import CORS
+from flasgger import Swagger, swag_from
 
 from entity.ANS import respone
 from service.ChatbotService import ChatbotService
 from util import Converter
 
 app = Flask(__name__)
+app.config['SWAGGER'] = {
+    'title': 'chatbot-ml-service',
+    'uiversion': 3
+}
+swagger = Swagger(app)
 app.chatbotservice = ChatbotService()
 CORS(app)
 
 
 @app.route('/ping', methods=['GET'])
+@swag_from('./api_defination/ping.yml')
 def ping():
     return "pong"
 
@@ -92,7 +99,6 @@ def reply2():
         res.append(lookp_dict.get(wrd, wrd))
 
     res = ' '.join(res)
-    print(res)
     result = app.chatbotservice.reply_question2(res)
     return result, 200
 

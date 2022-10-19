@@ -79,7 +79,6 @@ class ChatbotService:
         data = data.sort_values(by=['group_id'], ascending=True)
         x = data['question_content']
         y1 = self.getLabel(data['group_id'])
-        print(data['group_id'].unique())
         # trich xuat dac trung
         feature_extraction = FeatureExtraction(x, [])
         y2 = self.getLabel(data['category_id'])
@@ -93,7 +92,6 @@ class ChatbotService:
         model = self.train(X_train, y_train['group_id'], c, test_size)
         model.feature = feature_extraction
         score = model.score(feature_extraction.extractFrom(X_test).toarray(), y_test['group_id'])
-        print(score)
         model_id = uuid.uuid1()
         model_parent = Model(model_id=str(model_id),
                              name='parent',
@@ -142,14 +140,11 @@ class ChatbotService:
                 y_predict_temp = []
                 child_model = next((x for x in list_child if x.name == group), None)
                 feature_extraction_child = child_model.feature
-                print(feature_extraction_child.tranform_new(x_test.iloc[i]).toarray())
                 category = child_model.predict(feature_extraction_child.tranform_new(x_test.iloc[i]).toarray())
                 y_predict_temp.append(category)
                 y_predict += list(y_predict_temp)
             else:
                 y_predict.append(-1)
-        print(list(y_test))
-        print(y_predict)
         score = np.count_nonzero(y_test == y_predict) / len(y_test)
         return score
 
